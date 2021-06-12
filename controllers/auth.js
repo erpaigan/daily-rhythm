@@ -1,63 +1,64 @@
 import { Datastore } from '@google-cloud/datastore';
-import { getEntity, signInUser, upsertEntity } from '../functions/datastore.js'
-import { hashPassword } from '../functions/utility.js'
+
+import { NATIVE, GOOGLE } from '../constants/constants.js';
+import { getEntity, signInUser, signInGoogleUser, upsertEntity } from '../functions/datastore.js';
+import { hashPassword } from '../functions/utility.js';
+
 
 const datastore = new Datastore();
 
 // Get all users
 // GET /api/v1/user
 // Private
-const postSignIn = async (req, res) => {
-    const { source } = req.headers;
+const postSignIn = async (request, response) => {
+    const { source } = request.headers;
 
-    if (source === 'NATIVE') {
-        const { email, password } = req.body;
+    try {
+        let payload;
 
-        try {
-            const response = await signInUser(email, password);
+        if (source === NATIVE) {
+            const { email, password } = request.body;
 
-            return res.status(response.code).json(response);
-        } catch (error) {
-            console.log(error);
+            payload = await signInUser(email, password);
+        } else if (source === GOOGLE) {
+            const data = request.body;
 
-            return res.status(500).json({
-                success: false,
-                error: 'An error has occurred while signing in.'
-            })
+            payload = await signInGoogleUser(data);
         }
-    } else if (source === 'GOOGLE') {
-        const data = req.body;
 
-        // const response = await signInGoogleUser(data);
+        return response.status(payload.code).json(payload);
 
-        return res.status(200).json({})
+    } catch (error) {
+        console.log(error);
+
+        return response.status(500).json({
+            success: false,
+            error: 'An error has occurred while signing in.'
+        });
     }
-
-    // To do: Add sign in for google controller
-    //        Add middleware for authenticating google or native requests
 }
 
 // Add user
 // POST /api/v1/user
 // Private
-const postSignUp = async (req, res) => {
+const postSignUp = async (request, response) => {
     const user = {
-        firstname: req.body.firstname,
-        lastname: req.body.lastname,
+        firstname: request.body.firstname,
+        lastname: request.body.lastname,
         role: 'USER',
-        email: req.body.email,
-        password: await hashPassword(req.body.password),
+        email: request.body.email,
+        password: await hashPassword(request.body.password),
     };
 
     try {
         // Check if user already exists
-        const response = await upsertEntity(user, 'User');
+        const payload = await upsertEntity(user, 'User');
 
-        return res.status(200).json(response);
+        return response.status(200).json(payload);
     } catch (error) {
         console.log(error);
 
-        return res.status(500).json({
+        return response.status(500).json({
             success: false,
             error: 'An error has occurred while signing up.'
         })
