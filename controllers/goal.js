@@ -8,7 +8,7 @@ const datastore = new Datastore();
 // Private
 const getGoal = async (req, res) => {
     try {
-        const response = await getEntity(req, 'Goal');
+        const response = await getEntity(req.params.id, 'Goal');
 
         return res.status(200).json(response);
     } catch (error) {

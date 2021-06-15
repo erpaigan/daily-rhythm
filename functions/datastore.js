@@ -2,14 +2,14 @@ import { Datastore } from '@google-cloud/datastore';
 import jwt from 'jsonwebtoken';
 
 import { JWT_PRIVATE_KEY } from '../constants/secrets.js';
-import { comparePasswords } from './utility.js'
+import { comparePasswords, verifyGoogleAuth } from './utility.js'
 
 const datastore = new Datastore();
 
 const signInUser = async (email, password) => {
-    const payload = {
+    const responseData = {
         success: true,
-        code: 200,
+        code: 200
     };
 
     const query = datastore.createQuery('User').select('__key__').filter('email', '=', email).limit(1);
@@ -22,49 +22,64 @@ const signInUser = async (email, password) => {
         const [user] = await datastore.get(key);
 
         if (await comparePasswords(password, user.password)) {
-            payload.token = jwt.sign({ email: user.email, id: user[datastore.KEY].id }, JWT_PRIVATE_KEY, { expiresIn: '7d' })
-            payload.message = 'User is legit';
+            responseData.token = jwt.sign({ email: user.email, id: user[datastore.KEY].id }, JWT_PRIVATE_KEY, { expiresIn: '7d' })
+            responseData.message = 'User is legit';
         } else {
-            payload.success = 'Email or password may be incorrect'
-            payload.code = 402;
+            responseData.success = 'Email or password may be incorrect'
+            responseData.code = 402;
         }
 
-        return payload;
+        return responseData;
     } else {
-        payload.success = false;
-        payload.code = 404;
-        payload.message = 'User does not exist.';
+        responseData.success = false;
+        responseData.code = 404;
+        responseData.message = 'User does not exist.';
 
-        return payload;
+        return responseData;
     }
 }
 
-const signInGoogleUser = async (data) => {
-    // To do: Search database if user exists or not. If not, add user to the database
+const signInGoogleUser = async (tokenId) => {
+    const authResponse = await verifyGoogleAuth(tokenId);
 
-    // user created via google
-    // logs in via native
+    if (authResponse.success) {
+        const userData = authResponse.payload
 
-    // user created natively
-    // logs in via google
+        const user = {
+            id: userData.payid,
+            firstname: userData.firstname,
+            lastname: userData.lastname,
+            email: userData.email
+        };
+
+        // To do: Search database and upsert user to the database
+    }
+
+    return authResponse;
 }
 
-const getEntity = async (request, kind) => {
-    const payload = {
-        success: true
+// get keys only
+// const query = datastore.createQuery().select('__key__').limit(1);
+
+
+const getEntity = async (id, kind) => {
+    const responseData = {
+        success: true,
+        code: 200
     };
 
-    const key = datastore.key([kind, datastore.int(request.params.id)]);
+    const key = datastore.key([kind, datastore.int(id)]);
     const [entity] = await datastore.get(key);
 
-    payload.data = entity;
+    responseData.payload = entity;
 
-    return payload;
+    return responseData;
 }
 
 const getEntities = async (request, kind, includeId) => {
-    const payload = {
-        success: true
+    const responseData = {
+        success: true,
+        code: 200
     };
 
     const query = datastore.createQuery(kind)
@@ -88,22 +103,23 @@ const getEntities = async (request, kind, includeId) => {
         });
     }
 
-    payload.data = entities
+    responseData.payload = entities
 
     // Check if more results may exist.
     if (cursor.moreResults !== datastore.NO_MORE_RESULTS) {
-        payload.cursor = cursor.endCursor;
+        responseData.cursor = cursor.endCursor;
     }
 
-    return payload;
+    return responseData;
 }
 
-const upsertEntity = async (data, kind) => {
-    const payload = {
-        success: true
+const upsertEntity = async (data, kind, id) => {
+    const responseData = {
+        success: true,
+        code: 200
     };
 
-    const key = datastore.key(kind);
+    const key = datastore.key(id ? [kind, datastore.int(id)] : kind);
     const entity = {
         key,
         data,
@@ -113,9 +129,9 @@ const upsertEntity = async (data, kind) => {
 
     console.log(newEntity);
 
-    payload.data = key.id;
+    responseData.payload = key.id;
 
-    return payload;
+    return responseData;
 }
 
 export { signInUser, signInGoogleUser, getEntity, getEntities, upsertEntity };

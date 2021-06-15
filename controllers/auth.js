@@ -4,29 +4,28 @@ import { NATIVE, GOOGLE } from '../constants/constants.js';
 import { getEntity, signInUser, signInGoogleUser, upsertEntity } from '../functions/datastore.js';
 import { hashPassword } from '../functions/utility.js';
 
-
 const datastore = new Datastore();
 
 // Get all users
 // GET /api/v1/user
 // Private
 const postSignIn = async (request, response) => {
-    const { source } = request.headers;
+    const { source, authorization } = request.headers;
 
     try {
-        let payload;
+        let responseData;
 
         if (source === NATIVE) {
             const { email, password } = request.body;
 
-            payload = await signInUser(email, password);
+            responseData = await signInUser(email, password);
         } else if (source === GOOGLE) {
-            const data = request.body;
+            const tokenId = authorization.split(' ')[1];
 
-            payload = await signInGoogleUser(data);
+            responseData = await signInGoogleUser(tokenId);
         }
 
-        return response.status(payload.code).json(payload);
+        return response.status(responseData.code).json(responseData);
 
     } catch (error) {
         console.log(error);
@@ -52,9 +51,10 @@ const postSignUp = async (request, response) => {
 
     try {
         // Check if user already exists
-        const payload = await upsertEntity(user, 'User');
+        const responseData = await upsertEntity(user, 'User');
 
-        return response.status(200).json(payload);
+        return response.status(200).json(responseData);
+
     } catch (error) {
         console.log(error);
 

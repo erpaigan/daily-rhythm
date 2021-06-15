@@ -1,21 +1,24 @@
 import { Datastore } from '@google-cloud/datastore';
 import { getEntity, getEntities, upsertEntity } from '../functions/datastore.js'
-import { hashPassword, comparePasswords, removeObjectProps } from '../functions/utility.js'
+import { hashPassword, comparePasswords, removeObjectProps, removeObjectsListProps } from '../functions/utility.js'
 
 const datastore = new Datastore();
 
 // Get a user
 // GET /api/v1/user/:id
 // Private
-const getUser = async (req, res) => {
+const getUser = async (request, response) => {
     try {
-        const response = await getEntity(req, 'User');
+        const responseData = await getEntity(request.params.id, 'User');
 
-        return res.status(200).json(response);
+        removeObjectProps(responseData.payload, ['password']);
+
+        return response.status(responseData.code).json(responseData);
+
     } catch (error) {
         console.log(error);
 
-        return res.status(500).json({
+        return response.status(500).json({
             success: false,
             error: 'An error has occurred while retrieving this user.'
         })
@@ -25,18 +28,19 @@ const getUser = async (req, res) => {
 // Get all users
 // GET /api/v1/user
 // Private
-const getUsers = async (req, res) => {
+const getUsers = async (request, response) => {
     try {
-        const response = await getEntities(req, 'User', true);
+        const responseData = await getEntities(request, 'User', true);
 
         // Remove password from users list
-        removeObjectProps(response.data, ['password']);
+        removeObjectsListProps(responseData.payload, ['password']);
 
-        return res.status(200).json(response);
+        return response.status(responseData.code).json(responseData);
+
     } catch (error) {
         console.log(error);
 
-        return res.status(500).json({
+        return response.status(500).json({
             success: false,
             error: 'An error has occurred while retrieving users.'
         })
@@ -46,23 +50,24 @@ const getUsers = async (req, res) => {
 // Add user
 // POST /api/v1/user
 // Private
-const upsertUser = async (req, res) => {
+const upsertUser = async (request, response) => {
     const user = {
-        firstname: req.body.firstname,
-        lastname: req.body.lastname,
+        firstname: request.body.firstname,
+        lastname: request.body.lastname,
         role: 'USER',
-        email: req.body.email,
-        password: await hashPassword(req.body.password),
+        email: request.body.email,
+        password: await hashPassword(request.body.password),
     };
 
     try {
-        const response = await upsertEntity(user, 'User');
+        const responseData = await upsertEntity(user, 'User');
 
-        return res.status(200).json(response);
+        return response.status(responseData.code).json(responseData);
+
     } catch (error) {
         console.log(error);
 
-        return res.status(500).json({
+        return response.status(500).json({
             success: false,
             error: 'An error has occurred while adding a user.'
         })
@@ -72,9 +77,9 @@ const upsertUser = async (req, res) => {
 // Delete user
 // DELETE /api/v1/user
 // Private
-const deleteUser = async (req, res, next) => {
+const deleteUser = async (request, response, next) => {
     try {
-        res.send('DELETE user');
+        response.send('DELETE user');
     } catch (error) {
         next(error);
     }

@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
-import { SALTROUNDS } from '../constants/secrets.js';
+import { SALTROUNDS, ISS, OAUTH2CLIENTID } from '../constants/secrets.js';
+import { OAuth2Client } from 'google-auth-library';
 
 const hashPassword = async (password) => {
     const hashedPassword = await bcrypt.hash(password, SALTROUNDS);
@@ -13,8 +14,8 @@ const comparePasswords = async (password, hashedPassword) => {
     return isMatch;
 }
 
-const removeObjectProps = (objectWithProps, props) => {
-    objectWithProps.map(singleObject => {
+const removeObjectsListProps = (objectListWithProps, props) => {
+    objectListWithProps.map(singleObject => {
         props.forEach(prop => {
             delete singleObject[prop];
         });
@@ -23,4 +24,48 @@ const removeObjectProps = (objectWithProps, props) => {
     });
 }
 
-export { hashPassword, comparePasswords, removeObjectProps };
+const removeObjectProps = (objectWithProps, props) => {
+    props.forEach(prop => {
+        delete objectWithProps[prop];
+    });
+}
+
+const verifyGoogleAuth = async tokenId => {
+    const authResponse = {
+        success: true,
+        code: 200
+    }
+
+    const client = new OAuth2Client(process.env.CLIENT_ID);
+
+    const ticket = await client.verifyIdToken({
+        idToken: tokenId,
+        audience: process.env.CLIENT_ID,
+    }).catch(error => {
+        authResponse.success = false;
+        authResponse.code = 401;
+        authResponse.message = 'Problem authenticating with Google.'
+
+        console.log(error);
+    });
+
+    if (ticket) {
+        const authPayload = ticket.getPayload();
+
+        if (authResponse.success &&
+            authPayload.iss === ISS &&
+            authPayload.aud === OAUTH2CLIENTID) {
+
+            authResponse.payload = {
+                id: authPayload['sub'],
+                firstname: authPayload['given_name'],
+                lastname: authPayload['family_name'],
+                email: authPayload['email']
+            }
+        }
+    }
+
+    return authResponse;
+}
+
+export { hashPassword, comparePasswords, removeObjectsListProps, removeObjectProps, verifyGoogleAuth };
