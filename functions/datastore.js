@@ -1,71 +1,15 @@
 import { Datastore } from '@google-cloud/datastore';
 import jwt from 'jsonwebtoken';
 
+import { NATIVE, GOOGLE } from '../constants/constants.js';
 import { JWT_PRIVATE_KEY } from '../constants/secrets.js';
-import { comparePasswords, verifyGoogleAuth } from './utility.js'
+import { comparePasswords, verifyGoogleAuth, isEmpty } from './utility.js'
 
 const datastore = new Datastore();
 
-const signInUser = async (email, password) => {
+const getEntityById = async (id, kind) => {
     const responseData = {
-        success: true,
-        code: 200
-    };
-
-    const query = datastore.createQuery('User').select('__key__').filter('email', '=', email).limit(1);
-    const [entity] = await datastore.runQuery(query);
-
-    if (entity.length) {
-        let [key] = entity;
-        key = key[datastore.KEY];
-
-        const [user] = await datastore.get(key);
-
-        if (await comparePasswords(password, user.password)) {
-            responseData.token = jwt.sign({ email: user.email, id: user[datastore.KEY].id }, JWT_PRIVATE_KEY, { expiresIn: '7d' })
-            responseData.message = 'User is legit';
-        } else {
-            responseData.success = 'Email or password may be incorrect'
-            responseData.code = 402;
-        }
-
-        return responseData;
-    } else {
-        responseData.success = false;
-        responseData.code = 404;
-        responseData.message = 'User does not exist.';
-
-        return responseData;
-    }
-}
-
-const signInGoogleUser = async (tokenId) => {
-    const authResponse = await verifyGoogleAuth(tokenId);
-
-    if (authResponse.success) {
-        const userData = authResponse.payload
-
-        const user = {
-            id: userData.payid,
-            firstname: userData.firstname,
-            lastname: userData.lastname,
-            email: userData.email
-        };
-
-        // To do: Search database and upsert user to the database
-    }
-
-    return authResponse;
-}
-
-// get keys only
-// const query = datastore.createQuery().select('__key__').limit(1);
-
-
-const getEntity = async (id, kind) => {
-    const responseData = {
-        success: true,
-        code: 200
+        success: true
     };
 
     const key = datastore.key([kind, datastore.int(id)]);
@@ -76,21 +20,42 @@ const getEntity = async (id, kind) => {
     return responseData;
 }
 
-const getEntities = async (request, kind, includeId) => {
+// Keys only request
+const getKey = async (kind, property, operator, value) => {
+    const query = datastore
+        .createQuery(kind)
+        .select('__key__')
+        .filter(property, operator, value)
+        .limit(1);
+
+    const [entity] = await datastore.runQuery(query);
+
+    return entity;
+}
+
+const getEntityByKey = async (entityKey) => {
+    let [key] = entityKey;
+    key = key[datastore.KEY];
+
+    const [entity] = await datastore.get(key);
+
+    return entity;
+}
+
+const getEntities = async (requestQuery, kind, includeId) => {
     const responseData = {
-        success: true,
-        code: 200
+        success: true
     };
 
     const query = datastore.createQuery(kind)
 
-    if (request.query.limit) {
-        query.limit(request.query.limit);
+    if (requestQuery?.limit) {
+        query.limit(requestQuery.limit);
     }
 
     // Set query cursor if available
-    if (request.query.cursor) {
-        query.start(request.query.cursor);
+    if (requestQuery?.cursor) {
+        query.start(requestQuery.cursor);
     }
 
     const [entities, cursor] = await datastore.runQuery(query);
@@ -115,8 +80,7 @@ const getEntities = async (request, kind, includeId) => {
 
 const upsertEntity = async (data, kind, id) => {
     const responseData = {
-        success: true,
-        code: 200
+        success: true
     };
 
     const key = datastore.key(id ? [kind, datastore.int(id)] : kind);
@@ -127,11 +91,131 @@ const upsertEntity = async (data, kind, id) => {
 
     const [newEntity] = await datastore.upsert(entity);
 
-    console.log(newEntity);
-
     responseData.payload = key.id;
 
     return responseData;
 }
 
-export { signInUser, signInGoogleUser, getEntity, getEntities, upsertEntity };
+const signInUser = async (email, password, referrer) => {
+    const responseData = {
+        success: true,
+        message: {}
+    };
+
+    const userKey = await getKey('User', 'email', '=', email);
+
+    if (userKey.length) {
+
+        const user = await getEntityByKey(userKey);
+
+        if (!user.password) {
+            responseData.success = false;
+            responseData.message.text = 'Try signing in using the Sign in with Google button below.';
+            responseData.message.type = 'INFO';
+
+        } else {
+            if (await comparePasswords(password, user.password)) {
+                const jwtToken = jwt.sign({ email: user.email, id: user[datastore.KEY].id }, JWT_PRIVATE_KEY, { expiresIn: '7d' });
+
+                responseData.token = {
+                    id: jwtToken,
+                    source: NATIVE
+                }
+
+                // grab the goals and stuff depending on referrer 
+                if (referrer === '/goals') {
+
+                } else if (referrer === '/stash') {
+
+                }
+
+                // responseData.payload = goals or stash entities
+
+            } else {
+                responseData.success = false;
+                responseData.message.text = 'Email or password may be incorrect.';
+                responseData.message.type = 'WARNING';
+            }
+
+        }
+
+        return responseData;
+    } else {
+        responseData.success = false;
+        responseData.message.text = 'Email or password may be incorrect.';
+        responseData.message.type = 'WARNING';
+
+        return responseData;
+    }
+}
+
+const signInGoogleUser = async (tokenId, referrer) => {
+    const responseData = {
+        success: true,
+        message: {}
+    };
+
+    const authResponse = await verifyGoogleAuth(tokenId);
+
+    if (authResponse.message?.text) {
+        responseData.message.text = authResponse.message.text;
+        responseData.message.type = authResponse.message.type;
+    }
+
+    if (authResponse.success) {
+        const userData = authResponse.payload
+
+        responseData.token = {
+            id: tokenId,
+            source: GOOGLE
+        }
+
+        const entity = await getEntityById(userData.id, 'User');
+
+        if (!entity.payload || isEmpty(entity?.payload)) {
+
+            const userKey = await getKey('User', 'email', '=', userData.email)
+
+            if (userKey.length) {
+
+                const user = await getEntityByKey(userKey);
+
+                const jwtToken = jwt.sign({ email: user.email, id: user[datastore.KEY].id }, JWT_PRIVATE_KEY, { expiresIn: '7d' });
+
+                responseData.token = {
+                    id: jwtToken,
+                    source: NATIVE
+                }
+
+                // grab the goals and stuff depending on referrer 
+                if (referrer === '/goals') {
+
+                } else if (referrer === '/stash') {
+
+                }
+
+                // responseData.payload = goals or stash entities
+
+            } else {
+                // Create user here, no need grabbing stuff
+            }
+
+        } else {
+
+            // grab the goals and stuff depending on referrer 
+            if (referrer === '/goals') {
+
+            } else if (referrer === '/stash') {
+
+            }
+
+        }
+
+    } else {
+        responseData.success = false;
+    }
+
+    return responseData;
+}
+
+export { signInUser, signInGoogleUser, getEntityById, getKey, getEntities, upsertEntity };

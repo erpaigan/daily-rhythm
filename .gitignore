@@ -4,11 +4,14 @@
 /client/build
 
 # shhh
+/client/src/constants/secrets.js
 /config/google-app-credentials.json
 /constants/secrets.js
-/client/src/constants/secrets.js
 
 # dependencies
 node_modules/
 /.pnp
 .pnp.js
+
+# dev environment variables
+.env

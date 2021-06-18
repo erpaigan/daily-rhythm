@@ -1,5 +1,5 @@
 import { Datastore } from '@google-cloud/datastore';
-import { getEntity, getEntities, upsertEntity } from '../functions/datastore.js'
+import { getEntityById, getEntities, upsertEntity } from '../functions/datastore.js'
 
 const datastore = new Datastore();
 
@@ -7,60 +7,21 @@ const datastore = new Datastore();
 // GET /api/v1/goal/:id
 // Private
 const getGoal = async (req, res) => {
-    try {
-        const response = await getEntity(req.params.id, 'Goal');
 
-        return res.status(200).json(response);
-    } catch (error) {
-        console.log(error);
-
-        return res.status(500).json({
-            success: false,
-            error: 'An error has occurred while retrieving this goal.'
-        })
-    }
 }
 
 // Get all goals
 // GET /api/v1/goal
 // Private
-const getGoals = async (req, res) => {
-    try {
-        const response = await getEntities(req, 'Goal', true);
+const getGoals = async (request, response) => {
 
-        return res.status(200).json(response);
-    } catch (error) {
-        console.log(error);
-
-        return res.status(500).json({
-            success: false,
-            error: 'An error has occurred while retrieving goals.'
-        })
-    }
 }
 
 // Add goal
 // POST /api/v1/goal
 // Private
 const upsertGoal = async (req, res) => {
-    const goal = {
-        name: 'Buy Eggs',
-        category: 'reminder',
-        done: false,
-    };
 
-    try {
-        const response = await upsertEntity(goal, 'Goal');
-
-        return res.status(200).json(response);
-    } catch (error) {
-        console.log(error);
-
-        return res.status(500).json({
-            success: false,
-            error: 'An error has occurred while adding a goal.'
-        })
-    }
 }
 
 // Delete goal
