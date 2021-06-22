@@ -2,16 +2,14 @@ import Joi from 'joi';
 
 import { hashPassword } from '../functions/utility.js';
 
-const userSchema = async (validateUser) => {
+const userSchema = async (validateUser, isGoogleAccount) => {
 
     const user = Joi.object({
         firstname: Joi.string()
-            .alphanum()
             .max(30)
             .required(),
 
         lastname: Joi.string()
-            .alphanum()
             .max(30)
             .required(),
 
@@ -19,9 +17,11 @@ const userSchema = async (validateUser) => {
             .email({ minDomainSegments: 2 })
             .required(),
 
-        password: Joi.string()
+        password: isGoogleAccount ? Joi.string().allow(null, '') : Joi.string()
             .min(8)
             .required(),
+
+        confirm: Joi.ref('password')
 
         // .ref(password) means it should match value of password
         // repeatPassword: Joi.ref('password'),
@@ -50,7 +50,8 @@ const userSchema = async (validateUser) => {
     } else {
 
         // If valid, add aditional properties here
-        value.password = await hashPassword(value.password);
+        if (!isGoogleAccount) value.password = await hashPassword(value.password);
+
         value.created = new Date().toISOString();
         value.role = 'USER';
 

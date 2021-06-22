@@ -1,5 +1,5 @@
 import { Datastore } from '@google-cloud/datastore';
-import { getEntityById, getEntities, upsertEntity } from '../functions/datastore.js'
+import { getEntities, upsertEntity } from '../functions/datastore.js'
 
 const datastore = new Datastore();
 

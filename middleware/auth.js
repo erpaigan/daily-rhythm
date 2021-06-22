@@ -1,54 +1,70 @@
 import jwt from 'jsonwebtoken';
 
 import { JWT_PRIVATE_KEY } from '../constants/secrets.js';
-import { verifyGoogleAuth } from '../functions/utility';
+import { GOOGLE, NATIVE } from '../constants/constants.js';
+import { isEmpty } from '../functions/utility.js';
 
 const auth = async (request, response, next) => {
+
     try {
 
         const tokenId = request.headers.authorization.split(" ")[1];
         const source = request.headers.source;
-        console.log(tokenId);
-        console.log(source);
 
-        // check if from google or native
+        let decodedToken;
 
-        // verify token with jwt or google:
-        // jwt.verify(tokenId, JWT_PRIVATE_KEY)
-        // verifyGoogleAuth(tokenId)
+        if (source === NATIVE) {
 
-        // if not respond with 403 status, success false and
-        // message you shall not pass
+            decodedToken = jwt.verify(tokenId, JWT_PRIVATE_KEY);
 
-        // check if token is expired:
-        // verifiedToken.exp < new Date().getTime()
+        } else if (source === GOOGLE) {
 
-        // else: return with success false and message token has expired
+            // Implement verifyGoogleAuth(tokenId) in the future
+            decodedToken = jwt.decode(tokenId);
 
-        // get the user id from the token
+        }
 
-        // search for the user in the database (keys only)
+        if (decodedToken && !isEmpty(decodedToken)) {
 
-        // if not found:
-        // return response.status(403).json({
-        //     success: false,
-        //     payload: {
-        //         success: false,
-        //         message: {
-        //             type: ERROR
-        //             text: 'Please sign in to continue.'
-        //         }
-        //     }
-        //     error: 'You must be signed in to gain access.'
-        // });
+            // Check if expired
+            if (decodedToken.exp < new Date().getTime()) {
 
-        // if found:
-        // set request.userId = user's id
+                if (source === GOOGLE) {
+                    request.userId = decodedToken.sub;
+                } else if (source === NATIVE) {
+                    request.userId = decodedToken.id
+                }
 
-        next();
+            } else {
+                response.status(200).json({
+                    success: false,
+                    message: {
+                        text: 'Your token has expired. Please sign back in.',
+                        type: 'ERROR'
+                    }
+                });
+            }
+
+        } else {
+            response.status(200).json({
+                success: false,
+                message: {
+                    text: 'You shall not pass!',
+                    type: 'ERROR'
+                }
+            });
+        }
+
     } catch (error) {
         console.log(error);
+
+        return response.status(500).json({
+            success: false,
+            error: 'An error has occurred while authenticating user.'
+        });
     }
+
+    next();
 }
 
 export default auth;

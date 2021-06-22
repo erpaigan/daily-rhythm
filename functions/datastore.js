@@ -3,21 +3,43 @@ import jwt from 'jsonwebtoken';
 
 import { NATIVE, GOOGLE } from '../constants/constants.js';
 import { JWT_PRIVATE_KEY } from '../constants/secrets.js';
-import { comparePasswords, verifyGoogleAuth, isEmpty } from './utility.js'
+import { comparePasswords, verifyGoogleAuth, isEmpty } from './utility.js';
+import userSchema from '../schematics/userSchema.js';
 
 const datastore = new Datastore();
 
-const getEntityById = async (id, kind) => {
+// If the id is a string, Google calls it name, otherwise,
+// it is called Id. This function is termed name id because
+// we cant save very long integer values which Google auth
+// sub returns to us, so we save it as a string.
+const getEntityByIdOrName = async (idOrName, kind, source) => {
     const responseData = {
         success: true
     };
 
-    const key = datastore.key([kind, datastore.int(id)]);
+    const key = datastore.key([kind, source === GOOGLE ? idOrName.toString() : datastore.int(idOrName)]);
     const [entity] = await datastore.get(key);
 
     responseData.payload = entity;
 
     return responseData;
+}
+
+const getEntityByType = async (type, idOrName, kind) => {
+    const key = datastore.key([kind, type === 'name' ? idOrName.toString() : datastore.int(idOrName)]);
+    const [entity] = await datastore.get(key);
+
+    responseData.payload = entity;
+
+    return responseData;
+}
+
+const getEntityById = async (id, kind) => {
+    return getEntityByType('id', id, kind);
+}
+
+const getEntityByName = async (name, kind) => {
+    return getEntityByType('name', name, kind);
 }
 
 // Keys only request
@@ -83,7 +105,7 @@ const upsertEntity = async (data, kind, id) => {
         success: true
     };
 
-    const key = datastore.key(id ? [kind, datastore.int(id)] : kind);
+    const key = datastore.key(id ? [kind, id.toString()] : kind);
     const entity = {
         key,
         data,
@@ -94,6 +116,39 @@ const upsertEntity = async (data, kind, id) => {
     responseData.payload = key.id;
 
     return responseData;
+}
+
+const upsertEntityWithAncestor = async (type, data, kind, ancestor, ancestorNameId, id) => {
+    const responseData = {
+        success: true
+    };
+
+    const keyArray = [ancestor, type === 'name' ? ancestorNameId.toString() : datastore.int(ancestorNameId), kind];
+
+    if (id) {
+        keyArray.push(id);
+    }
+
+    const key = datastore.key(keyArray);
+
+    const entity = {
+        key,
+        data,
+    };
+
+    const [newEntity] = await datastore.upsert(entity);
+
+    responseData.payload = key.id;
+
+    return responseData;
+}
+
+const upsertEntityWithAncestorId = async (data, kind, ancestor, ancestorId, id) => {
+    return upsertEntityWithAncestor('id', data, kind, ancestor, ancestorId, id);
+}
+
+const upsertEntityWithAncestorName = async (data, kind, ancestor, ancestorId, id) => {
+    return upsertEntityWithAncestor('name', data, kind, ancestor, ancestorId, id);
 }
 
 const signInUser = async (email, password, referrer) => {
@@ -149,7 +204,7 @@ const signInUser = async (email, password, referrer) => {
     }
 }
 
-const signInGoogleUser = async (tokenId, referrer) => {
+const signInGoogleUser = async (tokenId, referrer, source) => {
     const responseData = {
         success: true,
         message: {}
@@ -163,6 +218,7 @@ const signInGoogleUser = async (tokenId, referrer) => {
     }
 
     if (authResponse.success) {
+
         const userData = authResponse.payload
 
         responseData.token = {
@@ -170,7 +226,7 @@ const signInGoogleUser = async (tokenId, referrer) => {
             source: GOOGLE
         }
 
-        const entity = await getEntityById(userData.id, 'User');
+        const entity = await getEntityByIdOrName(userData.id, 'User', GOOGLE);
 
         if (!entity.payload || isEmpty(entity?.payload)) {
 
@@ -197,7 +253,23 @@ const signInGoogleUser = async (tokenId, referrer) => {
                 // responseData.payload = goals or stash entities
 
             } else {
-                // Create user here, no need grabbing stuff
+
+                const validatedUser = await userSchema({
+                    firstname: userData.firstname,
+                    lastname: userData.lastname,
+                    email: userData.email,
+                    password: '',
+                    confirm: ''
+                }, true);
+
+                if (validatedUser.success) {
+
+                    const userId = await upsertEntity(validatedUser.payload, 'User', userData.id);
+
+                } else {
+                    responseData.success = validatedUser.success;
+                    responseData.message = validatedUser.message;
+                }
             }
 
         } else {
@@ -218,4 +290,15 @@ const signInGoogleUser = async (tokenId, referrer) => {
     return responseData;
 }
 
-export { signInUser, signInGoogleUser, getEntityById, getKey, getEntities, upsertEntity };
+export {
+    signInUser,
+    signInGoogleUser,
+    getEntityByIdOrName,
+    getEntityById,
+    getEntityByName,
+    getKey,
+    getEntities,
+    upsertEntity,
+    upsertEntityWithAncestorId,
+    upsertEntityWithAncestorName
+};

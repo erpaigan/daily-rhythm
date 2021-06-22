@@ -1,5 +1,5 @@
 import { Datastore } from '@google-cloud/datastore';
-import { getEntityById, getEntities, upsertEntity } from '../functions/datastore.js'
+import { getEntityByIdOrName, getEntities, upsertEntity } from '../functions/datastore.js'
 import { hashPassword, comparePasswords, removeObjectProps, removeObjectsListProps } from '../functions/utility.js'
 
 const datastore = new Datastore();
@@ -7,9 +7,9 @@ const datastore = new Datastore();
 // Get a user
 // GET /api/v1/user/:id
 // Private
-const getUser = async (request, response) => {
+const getUser = async (request, response, source) => {
     try {
-        const responseData = await getEntityById(request.params.id, 'User');
+        const responseData = await getEntityByIdOrName(request.params.id, 'User', source);
 
         removeObjectProps(responseData.payload, ['password']);
 

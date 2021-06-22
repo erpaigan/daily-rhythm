@@ -4,7 +4,7 @@ import dotenv from 'dotenv'; // Use our own environment variables when in develo
 import morgan from 'morgan'; // Prints out requests to the server in server logs
 
 import authRoutes from './routes/auth.js';
-import goalRoutes from './routes/goal.js';
+import routineRoutes from './routes/routine.js';
 import userRoutes from './routes/user.js';
 
 const app = express();
@@ -22,7 +22,7 @@ if (process.env.NODE_ENV === 'development') {
 
 // API Routes
 app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/goal', goalRoutes);
+app.use('/api/v1/routine', routineRoutes);
 app.use('/api/v1/user', userRoutes);
 
 // Points requests to host server to refer to React built bundle for our frontend

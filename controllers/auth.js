@@ -21,6 +21,7 @@ const postSignIn = async (request, response) => {
         if (source === NATIVE) {
 
             responseData = await signInUser(payload.email, payload.password, referrer);
+
         } else if (source === GOOGLE) {
             const tokenId = authorization.split(' ')[1];
 
