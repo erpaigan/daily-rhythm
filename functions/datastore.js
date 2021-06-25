@@ -5,27 +5,15 @@ import { NATIVE, GOOGLE } from '../constants/constants.js';
 import { JWT_PRIVATE_KEY } from '../constants/secrets.js';
 import { comparePasswords, verifyGoogleAuth, isEmpty } from './utility.js';
 import userSchema from '../schematics/userSchema.js';
+import { response } from 'express';
 
 const datastore = new Datastore();
 
-// If the id is a string, Google calls it name, otherwise,
-// it is called Id. This function is termed name id because
-// we cant save very long integer values which Google auth
-// sub returns to us, so we save it as a string.
-const getEntityByIdOrName = async (idOrName, kind, source) => {
+const getEntity = async (type, idOrName, kind) => {
     const responseData = {
         success: true
     };
 
-    const key = datastore.key([kind, source === GOOGLE ? idOrName.toString() : datastore.int(idOrName)]);
-    const [entity] = await datastore.get(key);
-
-    responseData.payload = entity;
-
-    return responseData;
-}
-
-const getEntityByType = async (type, idOrName, kind) => {
     const key = datastore.key([kind, type === 'name' ? idOrName.toString() : datastore.int(idOrName)]);
     const [entity] = await datastore.get(key);
 
@@ -35,11 +23,17 @@ const getEntityByType = async (type, idOrName, kind) => {
 }
 
 const getEntityById = async (id, kind) => {
-    return getEntityByType('id', id, kind);
+
+    const responseData = await getEntity('id', id, kind);
+
+    return responseData;
 }
 
 const getEntityByName = async (name, kind) => {
-    return getEntityByType('name', name, kind);
+
+    const responseData = await getEntity('name', name, kind);
+
+    return responseData;
 }
 
 // Keys only request
@@ -85,7 +79,13 @@ const getEntities = async (requestQuery, kind, includeId) => {
     // Add Id's to result if specified in includeId
     if (includeId) {
         entities.map(entity => {
-            entity['id'] = entity[datastore.KEY]['id']
+
+            if (entity[datastore.KEY]['id']) {
+                entity['id'] = entity[datastore.KEY]['id']
+            } else {
+                entity['name'] = entity[datastore.KEY]['name']
+            }
+
             return entity
         });
     }
@@ -96,6 +96,46 @@ const getEntities = async (requestQuery, kind, includeId) => {
     if (cursor.moreResults !== datastore.NO_MORE_RESULTS) {
         responseData.cursor = cursor.endCursor;
     }
+
+    return responseData;
+}
+
+const getEntitiesWithAncestor = async (type, kind, ancestor, ancestorNameId) => {
+    const responseData = {
+        success: true
+    };
+
+    const keyArray = [ancestor, type === 'name' ? ancestorNameId.toString() : datastore.int(ancestorNameId)];
+
+    const key = datastore.key(keyArray);
+
+    const query = datastore
+        .createQuery(kind)
+        .hasAncestor(key)
+        .order('created');
+
+    const [entities, cursor] = await datastore.runQuery(query);
+
+    entities.map(entity => {
+        entity['id'] = entity[datastore.KEY]['id']
+        return entity
+    });
+
+    responseData.payload = entities;
+
+    return responseData;
+}
+
+const getEntitiesWithAncestorId = async (kind, ancestor, ancestorId) => {
+
+    const responseData = await getEntitiesWithAncestor('id', kind, ancestor, ancestorId);
+
+    return responseData;
+}
+
+const getEntitiesWithAncestorName = async (kind, ancestor, ancestorName) => {
+
+    const responseData = await getEntitiesWithAncestor('name', kind, ancestor, ancestorName);
 
     return responseData;
 }
@@ -126,7 +166,7 @@ const upsertEntityWithAncestor = async (type, data, kind, ancestor, ancestorName
     const keyArray = [ancestor, type === 'name' ? ancestorNameId.toString() : datastore.int(ancestorNameId), kind];
 
     if (id) {
-        keyArray.push(id);
+        keyArray.push(datastore.int(id));
     }
 
     const key = datastore.key(keyArray);
@@ -138,20 +178,87 @@ const upsertEntityWithAncestor = async (type, data, kind, ancestor, ancestorName
 
     const [newEntity] = await datastore.upsert(entity);
 
-    responseData.payload = key.id;
+    responseData.payload = {
+        id: key.id
+    }
 
     return responseData;
 }
 
 const upsertEntityWithAncestorId = async (data, kind, ancestor, ancestorId, id) => {
-    return upsertEntityWithAncestor('id', data, kind, ancestor, ancestorId, id);
+
+    const responseData = await upsertEntityWithAncestor('id', data, kind, ancestor, ancestorId, id);
+
+    return responseData;
 }
 
-const upsertEntityWithAncestorName = async (data, kind, ancestor, ancestorId, id) => {
-    return upsertEntityWithAncestor('name', data, kind, ancestor, ancestorId, id);
+const upsertEntityWithAncestorName = async (data, kind, ancestor, ancestorName, id) => {
+
+    const responseData = await upsertEntityWithAncestor('name', data, kind, ancestor, ancestorName, id);
+
+    return responseData;
 }
 
-const signInUser = async (email, password, referrer) => {
+const removeEntityByIdOrName = async (type, idOrName, kind) => {
+    const responseData = {
+        success: true
+    };
+
+    const key = datastore.key([kind, type === 'name' ? idOrName.toString() : datastore.int(idOrName)]);
+
+    const [response] = await datastore.delete(key);
+
+    return responseData;
+}
+
+const removeEntityById = async (idOrName, kind) => {
+
+    const responseData = await removeEntityByIdOrName('id', idOrName, kind);
+
+    return responseData;
+}
+
+const removeEntityByName = async (idOrName, kind) => {
+
+    const responseData = await removeEntityByIdOrName('name', idOrName, kind);
+
+    return responseData;
+}
+
+const removeEntityWithAncestor = async (type, kind, ancestor, ancestorNameId, id) => {
+    const responseData = {
+        success: true
+    };
+
+    const keyArray = [
+        ancestor,
+        type === 'name' ? ancestorNameId.toString() : datastore.int(ancestorNameId),
+        kind,
+        datastore.int(id)
+    ];
+
+    const key = datastore.key(keyArray);
+
+    const [response] = await datastore.delete(key);
+
+    return responseData;
+}
+
+const removeEntityWithAncestorId = async (kind, ancestor, ancestorId, id) => {
+
+    const responseData = await removeEntityWithAncestor('id', kind, ancestor, ancestorId, id);
+
+    return responseData;
+}
+
+const removeEntityWithAncestorName = async (kind, ancestor, ancestorName, id) => {
+
+    const responseData = await removeEntityWithAncestor('name', kind, ancestor, ancestorName, id);
+
+    return responseData;
+}
+
+const signInUser = async (email, password) => {
     const responseData = {
         success: true,
         message: {}
@@ -165,26 +272,23 @@ const signInUser = async (email, password, referrer) => {
 
         if (!user.password) {
             responseData.success = false;
-            responseData.message.text = 'Try signing in using the Sign in with Google button below.';
+            responseData.message.text = 'Try signing in using the Sign in with Google button.';
             responseData.message.type = 'INFO';
 
         } else {
             if (await comparePasswords(password, user.password)) {
-                const jwtToken = jwt.sign({ email: user.email, id: user[datastore.KEY].id }, JWT_PRIVATE_KEY, { expiresIn: '7d' });
+
+                const userId = user[datastore.KEY].id;
+
+                const jwtToken = jwt.sign({ email: user.email, id: userId }, JWT_PRIVATE_KEY, { expiresIn: '7d' });
+
+                // Update user's last login time
+                const userChange = await dailyUserUpdate('id', user);
 
                 responseData.token = {
                     id: jwtToken,
                     source: NATIVE
                 }
-
-                // grab the goals and stuff depending on referrer 
-                if (referrer === '/goals') {
-
-                } else if (referrer === '/stash') {
-
-                }
-
-                // responseData.payload = goals or stash entities
 
             } else {
                 responseData.success = false;
@@ -195,6 +299,7 @@ const signInUser = async (email, password, referrer) => {
         }
 
         return responseData;
+
     } else {
         responseData.success = false;
         responseData.message.text = 'Email or password may be incorrect.';
@@ -204,7 +309,7 @@ const signInUser = async (email, password, referrer) => {
     }
 }
 
-const signInGoogleUser = async (tokenId, referrer, source) => {
+const signInGoogleUser = async (tokenId) => {
     const responseData = {
         success: true,
         message: {}
@@ -226,7 +331,7 @@ const signInGoogleUser = async (tokenId, referrer, source) => {
             source: GOOGLE
         }
 
-        const entity = await getEntityByIdOrName(userData.id, 'User', GOOGLE);
+        const entity = await getEntityByName(userData.id, 'User');
 
         if (!entity.payload || isEmpty(entity?.payload)) {
 
@@ -235,22 +340,17 @@ const signInGoogleUser = async (tokenId, referrer, source) => {
             if (userKey.length) {
 
                 const user = await getEntityByKey(userKey);
+                const userId = user[datastore.KEY].id;
 
-                const jwtToken = jwt.sign({ email: user.email, id: user[datastore.KEY].id }, JWT_PRIVATE_KEY, { expiresIn: '7d' });
+                const jwtToken = jwt.sign({ email: user.email, id: userId }, JWT_PRIVATE_KEY, { expiresIn: '7d' });
+
+                // Update user's last login time
+                const userChange = await dailyUserUpdate('id', user);
 
                 responseData.token = {
                     id: jwtToken,
                     source: NATIVE
                 }
-
-                // grab the goals and stuff depending on referrer 
-                if (referrer === '/goals') {
-
-                } else if (referrer === '/stash') {
-
-                }
-
-                // responseData.payload = goals or stash entities
 
             } else {
 
@@ -271,21 +371,87 @@ const signInGoogleUser = async (tokenId, referrer, source) => {
                     responseData.message = validatedUser.message;
                 }
             }
-
         } else {
 
-            // grab the goals and stuff depending on referrer 
-            if (referrer === '/goals') {
-
-            } else if (referrer === '/stash') {
-
-            }
-
+            // Update user's last login time
+            const userChange = await dailyUserUpdate('id', entity.payload);
         }
 
     } else {
+
         responseData.success = false;
     }
+
+    return responseData;
+}
+
+const dailyUserUpdate = async (type, user) => {
+    const responseData = {
+        success: true
+    };
+
+    const transaction = datastore.transaction();
+    await transaction.run();
+
+    let idOrName;
+
+    if (type === 'name') {
+
+        idOrName = user[datastore.KEY].name;
+
+    } else if (type === 'id') {
+
+        idOrName = user[datastore.KEY].id;
+    }
+
+    const key = datastore.key(['User', type === 'name' ? idOrName.toString() : datastore.int(idOrName)]);
+
+    const lastLogin = new Date(user.configuration.lastLogin);
+    const today = new Date();
+
+    if (lastLogin.getDate() !== today.getDate()) {
+
+        user.configuration.hasCheckedIn = false;
+
+        const query = datastore
+            .createQuery('Routine')
+            .hasAncestor(key)
+
+        const [routineEntities] = await transaction.runQuery(query);
+
+        if (routineEntities && routineEntities.length) {
+
+            const taskEntitiesList = [];
+
+            routineEntities.forEach(routine => {
+
+                if (routine.isDone) routine.isDone = false;
+
+                routine.checklist.map(checklistItem => {
+
+                    if (checklistItem.isDone) checklistItem.isDone = false;
+                });
+
+                taskEntitiesList.push({
+                    key: routine[datastore.KEY],
+                    data: routine
+                });
+            });
+
+            transaction.save(taskEntitiesList);
+        }
+    }
+
+    user.configuration.lastLogin = new Date().toISOString();
+
+    const userEntity = {
+        key,
+        data: user,
+    };
+
+    transaction.save(userEntity);
+
+    await transaction.commit();
 
     return responseData;
 }
@@ -293,12 +459,20 @@ const signInGoogleUser = async (tokenId, referrer, source) => {
 export {
     signInUser,
     signInGoogleUser,
-    getEntityByIdOrName,
+
+    getKey,
     getEntityById,
     getEntityByName,
-    getKey,
     getEntities,
+    getEntitiesWithAncestorId,
+    getEntitiesWithAncestorName,
+
     upsertEntity,
     upsertEntityWithAncestorId,
-    upsertEntityWithAncestorName
+    upsertEntityWithAncestorName,
+
+    removeEntityWithAncestorId,
+    removeEntityWithAncestorName,
+    removeEntityById,
+    removeEntityByName
 };

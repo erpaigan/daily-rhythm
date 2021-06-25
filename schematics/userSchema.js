@@ -1,6 +1,6 @@
 import Joi from 'joi';
 
-import { hashPassword } from '../functions/utility.js';
+import { hashPassword, removeObjectProps } from '../functions/utility.js';
 
 const userSchema = async (validateUser, isGoogleAccount) => {
 
@@ -32,6 +32,9 @@ const userSchema = async (validateUser, isGoogleAccount) => {
     // cannot appear together with access_token
     // .xor('password', 'access_token')
 
+    // Joi.number()
+    //     .integer(),
+
     const { value, error } = user.validate(validateUser);
 
     const validatedData = {
@@ -52,8 +55,17 @@ const userSchema = async (validateUser, isGoogleAccount) => {
         // If valid, add aditional properties here
         if (!isGoogleAccount) value.password = await hashPassword(value.password);
 
+        removeObjectProps(value, ['confirm']);
+
+        value.configuration = {
+            lastLogin: '',
+            hasCheckedIn: false,
+        }
+
+        value.configuration.lastLogin = new Date().toISOString();
         value.created = new Date().toISOString();
         value.role = 'USER';
+        value.routinesOrderedList = [];
 
         validatedData.payload = value;
     }

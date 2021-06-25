@@ -1,0 +1,6 @@
+indexes:
+  
+- kind: Routine
+  ancestor: yes
+  properties:
+  - name: created

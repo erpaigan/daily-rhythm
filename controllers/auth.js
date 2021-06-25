@@ -16,16 +16,16 @@ const postSignIn = async (request, response) => {
     try {
         let responseData;
 
-        const { referrer, payload } = request.body;
+        const { payload } = request.body;
 
         if (source === NATIVE) {
 
-            responseData = await signInUser(payload.email, payload.password, referrer);
+            responseData = await signInUser(payload.email, payload.password);
 
         } else if (source === GOOGLE) {
             const tokenId = authorization.split(' ')[1];
 
-            responseData = await signInGoogleUser(tokenId, referrer);
+            responseData = await signInGoogleUser(tokenId);
         }
 
         return response.status(200).json(responseData);
@@ -63,9 +63,9 @@ const postSignUp = async (request, response) => {
             }
 
         } else {
-            const userId = await upsertEntity(validatedUser, 'User');
+            const userData = await upsertEntity(validatedUser, 'User');
 
-            const jwtToken = jwt.sign({ email: validatedUser.email, id: userId }, JWT_PRIVATE_KEY, { expiresIn: '7d' });
+            const jwtToken = jwt.sign({ email: validatedUser.email, id: userData.payload }, JWT_PRIVATE_KEY, { expiresIn: '7d' });
 
             responseData.token = {
                 id: jwtToken,

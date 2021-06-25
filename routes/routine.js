@@ -8,15 +8,19 @@ const router = express.Router();
 
 router
     .route('/:id')
-    .get(auth, getRoutine);
+    .get(getRoutine);
 
 router
     .route('/')
-    .get(auth, getRoutines);
+    .get(getRoutines);
 
 router
     .route('/')
     .post(auth, routineValidation, upsertRoutine);
+
+router
+    .route('/:id')
+    .put(auth, routineValidation, upsertRoutine);
 
 router
     .route('/:id')

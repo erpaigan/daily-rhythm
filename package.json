@@ -6,10 +6,11 @@
   "type": "module",
   "scripts": {
     "start": "node server",
-    "server": "nodemon server",
+    "datastore": "gcloud beta emulators datastore start --data-dir=\"../datastore/daily-rhythm/\"",
+    "server": "nodemon server --ignore client",
     "client": "npm start --prefix client",
     "build": "npm run build --prefix client",
-    "dev": "concurrently \"npm run server\" \"npm run client\""
+    "dev": "concurrently \"npm run datastore\" \"npm run server\" \"npm run client\""
   },
   "author": "",
   "license": "ISC",

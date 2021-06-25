@@ -1,21 +1,21 @@
 import Joi from 'joi';
 
-const routineSchema = async (validateRoutine) => {
+const routineSchema = async (validateRoutine, routineId) => {
 
     const routine = Joi.object({
         name: Joi.string()
-            .max(30)
+            .max(100)
             .required(),
 
         details: Joi.alternatives([
             Joi.string()
-                .max(50),
+                .max(500),
             Joi.string().valid('')
         ]),
 
         isDone: Joi.boolean(),
 
-        timeLastDone: Joi.alternatives([
+        created: Joi.alternatives([
             Joi.date(),
             Joi.string().valid('')
         ]),
@@ -32,7 +32,7 @@ const routineSchema = async (validateRoutine) => {
             .items(Joi.object().keys({
                 id: Joi.string(),
                 isDone: Joi.boolean(),
-                details: Joi.string().max(50),
+                details: Joi.string().max(200),
             })),
 
         uncheckedList: Joi.array()
@@ -62,9 +62,11 @@ const routineSchema = async (validateRoutine) => {
 
     } else {
 
-        // If valid, add aditional properties here
+        if (!routineId) {
+            value.created = new Date().toISOString();
+        }
 
-        value.created = new Date().toISOString();
+        value.lastModified = new Date().toISOString();
 
         validatedData.payload = value;
     }

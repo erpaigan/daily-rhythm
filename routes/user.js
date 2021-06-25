@@ -1,5 +1,7 @@
 import express from 'express';
-import { getUser, getUsers, upsertUser, deleteUser } from '../controllers/user.js';
+
+import { getUser, getUsers, upsertUser, deleteUser, checkInUser } from '../controllers/user.js';
+import auth from '../middleware/auth.js'
 
 const router = express.Router();
 
@@ -18,5 +20,9 @@ router
 router
     .route('/:id')
     .delete(deleteUser);
+
+router
+    .route('/checkin')
+    .put(auth, checkInUser);
 
 export default router;
