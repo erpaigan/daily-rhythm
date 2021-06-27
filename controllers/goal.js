@@ -43,11 +43,14 @@ const getGoals = async (request, response) => {
             routinesResponse = await getEntitiesWithAncestorName('Routine', 'User', userId);
         }
 
+        let user;
+
         if (userResponse.success) {
 
-            const user = userResponse.payload;
+            user = userResponse.payload;
 
             responseData.payload.userProfile = {
+
                 firstname: user.firstname,
                 lastname: user.lastname
             }
@@ -56,7 +59,21 @@ const getGoals = async (request, response) => {
 
         if (routinesResponse.success) {
 
-            responseData.payload.routinesList = routinesResponse.payload;
+            const routinesList = routinesResponse.payload;
+            const routinesListPayload = [];
+
+            user.configuration.routinesOrderedList.forEach(routineOrdered => {
+
+                routinesList.forEach(routine => {
+
+                    if (routineOrdered === routine.id) {
+
+                        routinesListPayload.push(routine);
+                    }
+                });
+            });
+
+            responseData.payload.routinesList = routinesListPayload;
         }
 
         return response.status(200).json(responseData);

@@ -112,6 +112,10 @@ const deleteUser = async (request, response) => {
 
 const checkInUser = async (request, response) => {
 
+    const responseData = {
+        success: true
+    };
+
     const source = request.headers.source;
     const idOrName = request.userId;
 
@@ -120,8 +124,6 @@ const checkInUser = async (request, response) => {
     try {
 
         await transaction.run();
-
-        let responseData = {};
 
         let type;
 

@@ -5,7 +5,6 @@ import { NATIVE, GOOGLE } from '../constants/constants.js';
 import { JWT_PRIVATE_KEY } from '../constants/secrets.js';
 import { comparePasswords, verifyGoogleAuth, isEmpty } from './utility.js';
 import userSchema from '../schematics/userSchema.js';
-import { response } from 'express';
 
 const datastore = new Datastore();
 
@@ -282,9 +281,6 @@ const signInUser = async (email, password) => {
 
                 const jwtToken = jwt.sign({ email: user.email, id: userId }, JWT_PRIVATE_KEY, { expiresIn: '7d' });
 
-                // Update user's last login time
-                const userChange = await dailyUserUpdate('id', user);
-
                 responseData.token = {
                     id: jwtToken,
                     source: NATIVE
@@ -344,9 +340,6 @@ const signInGoogleUser = async (tokenId) => {
 
                 const jwtToken = jwt.sign({ email: user.email, id: userId }, JWT_PRIVATE_KEY, { expiresIn: '7d' });
 
-                // Update user's last login time
-                const userChange = await dailyUserUpdate('id', user);
-
                 responseData.token = {
                     id: jwtToken,
                     source: NATIVE
@@ -371,87 +364,12 @@ const signInGoogleUser = async (tokenId) => {
                     responseData.message = validatedUser.message;
                 }
             }
-        } else {
-
-            // Update user's last login time
-            const userChange = await dailyUserUpdate('id', entity.payload);
         }
 
     } else {
 
         responseData.success = false;
     }
-
-    return responseData;
-}
-
-const dailyUserUpdate = async (type, user) => {
-    const responseData = {
-        success: true
-    };
-
-    const transaction = datastore.transaction();
-    await transaction.run();
-
-    let idOrName;
-
-    if (type === 'name') {
-
-        idOrName = user[datastore.KEY].name;
-
-    } else if (type === 'id') {
-
-        idOrName = user[datastore.KEY].id;
-    }
-
-    const key = datastore.key(['User', type === 'name' ? idOrName.toString() : datastore.int(idOrName)]);
-
-    const lastLogin = new Date(user.configuration.lastLogin);
-    const today = new Date();
-
-    if (lastLogin.getDate() !== today.getDate()) {
-
-        user.configuration.hasCheckedIn = false;
-
-        const query = datastore
-            .createQuery('Routine')
-            .hasAncestor(key)
-
-        const [routineEntities] = await transaction.runQuery(query);
-
-        if (routineEntities && routineEntities.length) {
-
-            const taskEntitiesList = [];
-
-            routineEntities.forEach(routine => {
-
-                if (routine.isDone) routine.isDone = false;
-
-                routine.checklist.map(checklistItem => {
-
-                    if (checklistItem.isDone) checklistItem.isDone = false;
-                });
-
-                taskEntitiesList.push({
-                    key: routine[datastore.KEY],
-                    data: routine
-                });
-            });
-
-            transaction.save(taskEntitiesList);
-        }
-    }
-
-    user.configuration.lastLogin = new Date().toISOString();
-
-    const userEntity = {
-        key,
-        data: user,
-    };
-
-    transaction.save(userEntity);
-
-    await transaction.commit();
 
     return responseData;
 }

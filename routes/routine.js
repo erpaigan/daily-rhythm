@@ -1,6 +1,6 @@
 import express from 'express';
 
-import { getRoutine, getRoutines, upsertRoutine, deleteRoutine } from '../controllers/routine.js';
+import { getRoutine, getRoutines, upsertRoutine, reorderRoutines, deleteRoutine } from '../controllers/routine.js';
 import auth from '../middleware/auth.js'
 import { routineValidation } from '../middleware/validation/routineValidation.js'
 
@@ -17,6 +17,10 @@ router
 router
     .route('/')
     .post(auth, routineValidation, upsertRoutine);
+
+router
+    .route('/reorder')
+    .put(auth, reorderRoutines);
 
 router
     .route('/:id')

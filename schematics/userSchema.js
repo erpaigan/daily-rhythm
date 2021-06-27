@@ -58,14 +58,14 @@ const userSchema = async (validateUser, isGoogleAccount) => {
         removeObjectProps(value, ['confirm']);
 
         value.configuration = {
-            lastLogin: '',
+            lastRoutineCheck: '',
             hasCheckedIn: false,
+            routinesOrderedList: []
         }
 
-        value.configuration.lastLogin = new Date().toISOString();
+        value.configuration.lastRoutineCheck = new Date().toISOString();
         value.created = new Date().toISOString();
         value.role = 'USER';
-        value.routinesOrderedList = [];
 
         validatedData.payload = value;
     }

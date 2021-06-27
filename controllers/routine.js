@@ -2,6 +2,8 @@ import { Datastore } from '@google-cloud/datastore';
 
 import {
     getEntities,
+    getEntityByName,
+    getEntityById,
     upsertEntityWithAncestorName,
     upsertEntityWithAncestorId,
     removeEntityWithAncestorName,
@@ -81,6 +83,32 @@ const upsertRoutine = async (request, response) => {
             responseData = await upsertEntityWithAncestorId(validatedRoutine, 'Routine', 'User', userId, routineId);
         }
 
+        if (!routineId) {
+
+            let userResponse;
+            let userKey;
+
+            if (source === GOOGLE) {
+
+                userResponse = await getEntityByName(userId, 'User');
+                userKey = datastore.key(['User', userId.toString()]);
+
+            } else if (source === NATIVE) {
+
+                userResponse = await getEntityById(userId, 'User');
+                userKey = datastore.key(['User', datastore.int(userId)]);
+            }
+
+            userResponse.payload.configuration.routinesOrderedList?.push(responseData.payload.id);
+
+            const updatedUser = {
+                key: userKey,
+                data: userResponse.payload,
+            };
+
+            const [newEntity] = await datastore.upsert(updatedUser);
+        }
+
         responseData.message = {
             type: 'SUCCESS'
         }
@@ -111,6 +139,63 @@ const upsertRoutine = async (request, response) => {
 
 }
 
+const reorderRoutines = async (request, response) => {
+
+    const responseData = {
+        success: true
+    };
+
+    const source = request.headers.source;
+    const idOrName = request.userId;
+    const payload = request.body.payload;
+
+    const transaction = datastore.transaction();
+
+    try {
+
+        await transaction.run();
+
+        let type;
+
+        if (source === GOOGLE) {
+
+            type = 'name';
+
+        } else if (source === NATIVE) {
+
+            type = 'id';
+        }
+
+        const key = datastore.key(['User', type === 'name' ? idOrName.toString() : datastore.int(idOrName)]);
+
+        const [userEntity] = await transaction.get(key);
+
+        const orderRoutinesList = [...userEntity.configuration.routinesOrderedList];
+        const [removed] = orderRoutinesList.splice(payload.routineIndexA, 1);
+
+        orderRoutinesList.splice(payload.routineIndexB, 0, removed);
+
+        userEntity.configuration.routinesOrderedList = [...orderRoutinesList];
+
+        transaction.save({
+            key,
+            data: userEntity,
+        });
+
+        await transaction.commit();
+
+        return response.status(200).json(responseData);
+
+    } catch (error) {
+        console.log(error);
+
+        return response.status(500).json({
+            success: false,
+            error: 'An error has occurred on user check in.'
+        });
+    }
+}
+
 // Delete routine
 // DELETE /api/v1/routine/:id
 // Private
@@ -123,12 +208,36 @@ const deleteRoutine = async (request, response) => {
     try {
 
         let responseData;
+        let userResponse;
+        let userKey;
 
         if (source === GOOGLE) {
+
             responseData = await removeEntityWithAncestorName('Routine', 'User', userId, routineId);
+
+            userResponse = await getEntityByName(userId, 'User');
+            userKey = datastore.key(['User', userId.toString()]);
+
         } else if (source === NATIVE) {
+
             responseData = await removeEntityWithAncestorId('Routine', 'User', userId, routineId);
+
+            userResponse = await getEntityById(userId, 'User');
+            userKey = datastore.key(['User', datastore.int(userId)]);
         }
+
+        const routinesOrderedList = userResponse.payload.configuration.routinesOrderedList;
+
+        const index = routinesOrderedList.indexOf(routineId);
+
+        routinesOrderedList.splice(index, 1);
+
+        const updatedUser = {
+            key: userKey,
+            data: userResponse.payload,
+        };
+
+        const [newEntity] = await datastore.upsert(updatedUser);
 
         responseData.message = {
             text: 'Routine successfully removed.',
@@ -147,4 +256,4 @@ const deleteRoutine = async (request, response) => {
     }
 }
 
-export { getRoutine, getRoutines, upsertRoutine, deleteRoutine };
+export { getRoutine, getRoutines, upsertRoutine, reorderRoutines, deleteRoutine };
