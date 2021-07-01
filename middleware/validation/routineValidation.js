@@ -17,6 +17,8 @@ const routineValidation = async (request, response, next) => {
             return response.status(200).json(validatedRoutine);
         }
 
+        next();
+
     } catch (error) {
         console.log(error);
 
@@ -25,8 +27,6 @@ const routineValidation = async (request, response, next) => {
             error: 'An error has occurred while validating routine.'
         });
     }
-
-    next();
 }
 
 export { routineValidation }

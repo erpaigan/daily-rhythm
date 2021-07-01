@@ -14,6 +14,8 @@ const userValidation = async (request, response, next) => {
             return response.status(200).json(validatedUser);
         }
 
+        next();
+
     } catch (error) {
         console.log(error);
 
@@ -22,8 +24,6 @@ const userValidation = async (request, response, next) => {
             error: 'An error has occurred while validating user.'
         });
     }
-
-    next();
 }
 
 export { userValidation }

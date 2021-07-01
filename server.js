@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv'; // Use our own environment variables when in development
 import morgan from 'morgan'; // Prints out requests to the server in server logs
 
@@ -30,6 +31,9 @@ app.use('/api/v1/user', userRoutes);
 // Points requests to host server to refer to React built bundle for our frontend
 if (process.env.NODE_ENV === 'production') {
     app.use(express.static('client/build'));
+
+    // Fixes error where __dirname is not gives error when type equals module in package.json
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
     app.get('*', (request, response) => response.sendFile(path.resolve(__dirname, 'client', 'build', 'index.html')));
 }

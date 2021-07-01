@@ -35,8 +35,10 @@ const auth = async (request, response, next) => {
                     request.userId = decodedToken.id
                 }
 
+                next();
+
             } else {
-                response.status(200).json({
+                return response.status(401).json({
                     success: false,
                     message: {
                         text: 'Your token has expired. Please sign back in.',
@@ -46,7 +48,7 @@ const auth = async (request, response, next) => {
             }
 
         } else {
-            response.status(200).json({
+            return response.status(401).json({
                 success: false,
                 message: {
                     text: 'You shall not pass!',
@@ -63,8 +65,6 @@ const auth = async (request, response, next) => {
             error: 'An error has occurred while authenticating user.'
         });
     }
-
-    next();
 }
 
 export default auth;
